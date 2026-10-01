@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.clients.firestore import get_firestore_client
+from app.routes.notes.endpoints import router as notes_router
 
 app = FastAPI()
 
@@ -13,19 +13,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(notes_router)
+
 #Endpoint de prueba
 @app.get("/")
 def hello_world():
     return {"message": "Hello FastApi!"}
 
-@app.get("/notes")
-async def get_notes():
-    db = get_firestore_client()
-    collection_ref = db.collection("test-notes")
-
-    notes = []
-    docs = collection_ref.stream()
-    for doc in docs:
-        note_data = doc.to_dict()
-        notes.append(note_data)
-    return {"notes": notes} 
