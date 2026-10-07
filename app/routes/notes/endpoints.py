@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.note import Note, CreateNote
+from app.schemas.note import Note, CreateNote, UpdateNote
 from app.clients.firestore import get_firestore_client
 from typing import Dict, List
 from google.cloud import firestore
@@ -55,3 +55,70 @@ async def create_note(note_data: CreateNote) -> Dict[str, Note]:
         "updated_at": note_stored["updated_at"].isoformat()
     }
 }
+
+@router.get("/{note_id}", status_code=200)
+async def get_note_by_id(note_id: str) -> Dict[str, Note]:
+    db = get_firestore_client()
+    collection_ref = db.collection("notes")
+    doc_ref = collection_ref.document(note_id)
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    note_data = doc.to_dict()
+    return {"note": {
+        "id": note_data["id"],
+        "title": note_data["title"],
+        "content": note_data["content"],    
+    "created_at": note_data["created_at"].isoformat(),
+    "updated_at": note_data["updated_at"].isoformat()
+    }
+}
+
+#Actualiza una nota existente en la base de datos Firestore. Si la nota no existe, devuelve un error 404. Si la actualización es exitosa, devuelve la nota actualizada con un código de estado 200.
+@router.patch("/{note_id}", status_code=200)
+async def update_note(note_id: str, note_data: UpdateNote) -> Dict[str, Note]:
+    db = get_firestore_client()
+    collection_ref = db.collection("notes")
+    doc_ref = collection_ref.document(note_id)
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    update_data = {}
+
+    if note_data.title is not None:
+        update_data["title"] = note_data.title
+    if note_data.content is not None:
+        update_data["content"] = note_data.content
+
+    update_data["updated_at"] = firestore.SERVER_TIMESTAMP
+# Guarda en firestore los cambios realizados en la nota, actualizando los campos proporcionados y estableciendo la marca de tiempo de actualización. Luego, obtiene la nota actualizada y la devuelve en formato JSON.
+    doc_ref.update(update_data)
+    updated_doc = doc_ref.get()
+    updated_note = updated_doc.to_dict()
+
+    return {"note": {
+        "id": updated_note["id"],
+        "title": updated_note["title"],
+        "content": updated_note["content"],
+        "created_at": updated_note["created_at"].isoformat(),
+        "updated_at": updated_note["updated_at"].isoformat()
+    }
+}
+
+#Eliminar una nota identificada por su ID.
+@router.delete("/{note_id}", status_code=200)
+async def delete_note(note_id: str) -> Dict[str, str]:
+    db = get_firestore_client()
+    collection_ref = db.collection("notes")
+    doc_ref = collection_ref.document(note_id)
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    doc_ref.delete()
+    return {"message": f"Note with id: {note_id} deleted successfully"}
